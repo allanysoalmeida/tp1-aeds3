@@ -1,7 +1,6 @@
 import cv2
 from graph import Graph
 
-
 image_path = "C:\\Users\\admin\\Desktop\\aeds III\\TP1\\toy.bmp"
 graph = Graph().create_graph_from_image(image_path)
 graph.print_nodes_info(cv2.imread(image_path))
