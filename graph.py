@@ -1,93 +1,100 @@
 import cv2
+from collections import deque
 import numpy as np
 from typing import List, Any
 
 class Graph:
-    def __init__(self, image_path):
-        self.graph = self.create_graph(image_path)
+    def __init__(self):
+        self.adj = {}
 
-    def create_graph(self, image_path):
+    def add_node(self, node: Any) -> None:
+        if node not in self.adj:
+            self.adj[node] = {}
+
+    def add_edge(self, u: Any, v: Any) -> None:
+        self.adj[u][v] = 1
+
+    def is_valid_neighbor(self, y, x, height, width):
+        return 0 <= y < height and 0 <= x < width
+
+    def create_graph_from_image(self, image_path):
         img = cv2.imread(image_path)
         height, width, _ = img.shape
-        adjacency_list = {}
 
         for y in range(height):
             for x in range(width):
-                current_color = img[y, x].tolist()
                 current_node = (y, x)
+                current_color = tuple(img[y, x])
 
-                if current_node not in adjacency_list:
-                    adjacency_list[current_node] = {"color": current_color, "neighbors": []}
+                self.add_node(current_node)
 
-                # Verifica vizinhos na horizontal e vertical
-                neighbors = [
-                    (y - 1, x),  # acima
-                    (y, x - 1),  # à esquerda
-                    (y, x + 1),  # à direita
-                    (y + 1, x),  # abaixo
-                ]
+                valid_neighbors = [(y - 1, x), (y, x - 1), (y, x + 1), (y + 1, x)]
 
-                for neighbor_y, neighbor_x in neighbors:
-                    if 0 <= neighbor_y < height and 0 <= neighbor_x < width:
-                        neighbor_color = img[neighbor_y, neighbor_x].tolist()
+                for neighbor_y, neighbor_x in valid_neighbors:
+                    if self.is_valid_neighbor(neighbor_y, neighbor_x, height, width):
                         neighbor_node = (neighbor_y, neighbor_x)
+                        neighbor_color = tuple(img[neighbor_y, neighbor_x])
 
-                        # Restrição: Nós pretos só se ligam a outros nós pretos
-                        if current_color == [0, 0, 0] and neighbor_color == [0, 0, 0]:
-                            adjacency_list[current_node]["neighbors"].append(neighbor_node)
-                        elif current_color != [0, 0, 0] and neighbor_color != [0, 0, 0] and (current_node[0] == neighbor_node[0] or current_node[1] == neighbor_node[1]):
-                            # Outros nós se ligam sem criar arestas diagonais
-                            adjacency_list[current_node]["neighbors"].append(neighbor_node)
+                        if current_color == (0, 0, 0) and neighbor_color == (0, 0, 0):
+                            self.add_edge(current_node, neighbor_node)
 
-        return adjacency_list
+                        if current_color != (0, 0, 0) and neighbor_color != (0, 0, 0):
+                            self.add_edge(current_node, neighbor_node)
 
-    def get_num_edges(self):
-        count = 0
-        for neighbors in self.graph.values():
-            count += len(neighbors["neighbors"])
-        return count // 2
+        return self
 
-    def print_graph(self):
-        for node, attributes in self.graph.items():
-            neighbors_str = ', '.join([str(neighbor) for neighbor in attributes['neighbors']])
-            print(f"Node: {node} | Color: {attributes['color']} | Neighbors: {neighbors_str}")
+    def bfs(self, start: Any, end: Any) -> List[Any]:
+        visited = set()
+        queue = deque([(start, [start])])
 
-    def bfs_path(self, start_color: List[int], end_color: List[int]) -> List[Any]:
-        """
-        Perform Breadth-First Search (BFS) from the source node with the specified color
-        to the destination node with the specified color, avoiding nodes with another color.
+        while queue:
+            current_node, path = queue.popleft()
 
-        Parameters:
-        - start_color: The color of the source node.
-        - end_color: The color of the destination node.
+            if current_node == end:
+                self.print_arrows_for_path(path)
+                return path
 
-        Returns:
-        A list representing the path from the source to the destination, avoiding nodes with another color.
-        """
-        start_node = None
-        end_node = None
+            visited.add(current_node)
+            neighbors = self.adj[current_node]
 
-        # Find the nodes with the specified colors
-        for node, attributes in self.graph.items():
-            if attributes["color"] == start_color:
-                start_node = node
-            elif attributes["color"] == end_color:
-                end_node = node
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    next_path = path + [neighbor]
+                    queue.append((neighbor, next_path))
+                    visited.add(neighbor)
 
-        if start_node is None or end_node is None:
-            raise ValueError("Source or destination node not found with the specified colors.")
+        print("path not found")
+        return []
 
-        desc = {node: 0 for node in self.graph}
-        Q = [start_node]
-        R = [start_node]
-        desc[start_node] = 1
+    def print_arrows_for_path(self, path: List[Any]) -> None:
+        
+        print("\n \n----------------------BFS PATH----------------------\n ")
+        if not path:
+            return
 
-        while len(Q) > 0:
-            u = Q.pop(0)
-            for v in self.graph[u]["neighbors"]:
-                if desc[v] == 0 and self.graph[v]["color"] != [0, 0, 0]:
-                    desc[v] = 1
-                    Q.append(v)
-                    R.append(v)
+        for i in range(len(path) - 1):
+            current_node = path[i]
+            next_node = path[i + 1]
 
-        return R
+            y_diff = next_node[0] - current_node[0]
+            x_diff = next_node[1] - current_node[1]
+
+            if y_diff == 1:
+                print("vv", end=" ")
+            elif y_diff == -1:
+                print("^^", end=" ")
+            elif x_diff == 1:
+                print(">>", end=" ")
+            elif x_diff == -1:
+                print("<<", end=" ")
+                
+        print("\n")
+
+        print()
+
+    def count_edges(self) -> int:
+        return sum(len(neighbors) for neighbors in self.adj.values())
+
+    def print_nodes_info(self, img):
+        for node, neighbors in self.adj.items():
+            print(f"Node: {node}, Color: {img[node[0], node[1]].tolist()}, Neighbors: {list(neighbors.keys())}")
