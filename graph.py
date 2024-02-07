@@ -2,20 +2,13 @@ import cv2
 from collections import deque
 import numpy as np
 from typing import List, Any
+from queue import Queue
 
 class Graph:
     def __init__(self):
         self.adj = {}
-
-    def add_node(self, node: Any) -> None:
-        if node not in self.adj:
-            self.adj[node] = {}
-
-    def add_edge(self, u: Any, v: Any) -> None:
-        self.adj[u][v] = 1
-
-    def is_valid_neighbor(self, y, x, height, width):
-        return 0 <= y < height and 0 <= x < width
+        self.start_node = None
+        self.end_nodes = []
 
     def create_graph_from_image(self, image_path):
         img = cv2.imread(image_path)
@@ -25,6 +18,11 @@ class Graph:
             for x in range(width):
                 current_node = (y, x)
                 current_color = tuple(img[y, x])
+
+                if current_color == (0, 255, 0):  # Pixel verde
+                    self.end_nodes.append(current_node)
+                elif current_color == (0, 0, 255):  # Pixel vermelho
+                    self.start_node = current_node
 
                 self.add_node(current_node)
 
@@ -43,15 +41,33 @@ class Graph:
 
         return self
 
-    def bfs(self, start: Any, end: Any) -> List[Any]:
-        visited = set()
-        queue = deque([(start, [start])])
+    def find_green_nodes(self, image_path):
+        img = cv2.imread(image_path)
+        height, width, _ = img.shape
+        green_nodes = []
 
-        while queue:
-            current_node, path = queue.popleft()
+        for y in range(height):
+            for x in range(width):
+                current_color = tuple(img[y, x])
+
+                if current_color == (0, 255, 0):  # Pixel verde
+                    green_nodes.append((y, x))
+
+        return green_nodes
+
+    def bfs(self, start, end):
+        if start is None or end is None:
+            print("Start or end node not defined.")
+            return []
+
+        visited = set()
+        queue = Queue()
+        queue.put((start, [start]))
+
+        while not queue.empty():
+            current_node, path = queue.get()
 
             if current_node == end:
-                self.print_arrows_for_path(path)
                 return path
 
             visited.add(current_node)
@@ -60,15 +76,13 @@ class Graph:
             for neighbor in neighbors:
                 if neighbor not in visited:
                     next_path = path + [neighbor]
-                    queue.append((neighbor, next_path))
+                    queue.put((neighbor, next_path))
                     visited.add(neighbor)
 
-        print("path not found")
         return []
 
     def print_arrows_for_path(self, path: List[Any]) -> None:
-        
-        print("\n \n----------------------BFS PATH----------------------\n ")
+        print("\n----------------------BFS PATH----------------------\n ")
         if not path:
             return
 
@@ -87,13 +101,38 @@ class Graph:
                 print(">>", end=" ")
             elif x_diff == -1:
                 print("<<", end=" ")
-                
+
         print("\n")
 
-        print()
+    def find_shortest_path(self):
+        if self.start_node is None or not self.end_nodes:
+            print("Start or end nodes not defined.")
+            return []
 
-    def count_edges(self) -> int:
-        return sum(len(neighbors) for neighbors in self.adj.values())
+        shortest_path = None
+        shortest_path_length = float('inf')
+
+        for end_node in self.end_nodes:
+            path = self.bfs(self.start_node, end_node)  # Corrigido aqui
+            if path and len(path) < shortest_path_length:
+                shortest_path = path
+                shortest_path_length = len(path)
+
+        self.print_arrows_for_path(shortest_path)  # Adicionado aqui
+        return shortest_path
+
+    def add_node(self, node: Any) -> None:
+        if node not in self.adj:
+            self.adj[node] = {}
+
+    def add_edge(self, u: Any, v: Any) -> None:
+        self.adj[u][v] = 1
+
+    def is_valid_neighbor(self, y, x, height, width):
+        return 0 <= y < height and 0 <= x < width
+
+    #def count_edges(self) -> int:
+        #return sum(len(neighbors) for neighbors in self.adj.values())
 
     def print_nodes_info(self, img):
         for node, neighbors in self.adj.items():
